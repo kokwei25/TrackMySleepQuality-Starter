@@ -18,6 +18,7 @@ package com.example.android.trackmysleepquality.sleeptracker
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.Transformations
 import com.example.android.trackmysleepquality.database.SleepDatabaseDao
@@ -39,12 +40,39 @@ class SleepTrackerViewModel(
     private var viewModelJob = Job()
     private val uiScope = CoroutineScope(Dispatchers.Main + viewModelJob)
     private val nights = database.getAllNights()
+    private var tonight = MutableLiveData<SleepNight?>()
+
+    private val _navigateToSleepQuality = MutableLiveData<SleepNight>()
+
+    private var _showSnackbarEvent = MutableLiveData<Boolean>()
+
+    val showSnackBarEvent: LiveData<Boolean>
+        get() = _showSnackbarEvent
+
+    fun doneShowingSnackbar() {
+        _showSnackbarEvent.value = false
+    }
+
+    val navigateToSleepQuality: LiveData<SleepNight>
+        get() = _navigateToSleepQuality
+
+    fun doneNavigating() {
+        _navigateToSleepQuality.value = null
+    }
 
     val nightsString = Transformations.map(nights) { nights ->
         formatNights(nights, application.resources)
     }
 
-    private var tonight = MutableLiveData<SleepNight?>()
+    val startButtonVisible = Transformations.map(tonight) {
+        it == null
+    }
+    val stopButtonVisible = Transformations.map(tonight) {
+        it != null
+    }
+    val clearButtonVisible = Transformations.map(nights) {
+        it?.isNotEmpty()
+    }
 
     init {
         initializeTonight()
@@ -83,6 +111,7 @@ class SleepTrackerViewModel(
     fun onStopTracking() {
         uiScope.launch {
             val oldNight = tonight.value ?: return@launch
+            _navigateToSleepQuality.value = oldNight
             oldNight.endTimeMilli = System.currentTimeMillis()
             update(oldNight)
         }
@@ -96,6 +125,7 @@ class SleepTrackerViewModel(
 
     fun onClear() {
         uiScope.launch {
+            _showSnackbarEvent.value = true
             clear()
             tonight.value = null
         }
